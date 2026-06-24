@@ -3,3 +3,5 @@ Flask-GraphQL==2.0.1
 graphene==2.1.9
 PyMySQL==1.2.0
 python-dotenv==1.2.1
+redis==5.0.3
+celery==5.3.6
