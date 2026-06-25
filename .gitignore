@@ -1,2 +1,5 @@
 .venv/
 .env
+
+#private_files
+app/modules/chef_core_api/instructions.txt
