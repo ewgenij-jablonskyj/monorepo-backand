@@ -1,0 +1,123 @@
+Projekt: ChefCore API – Asynchroniczny silnik Food Costu
+Cel biznesowy: Zbudowanie systemu typu headless (sam backend bez interfejsu wizualnego), który na 
+żywo śledzi ceny składników od dostawców i automatycznie wylicza, czy dania w karcie restauracji 
+wciąż na siebie zarabiają.
+
+1. Architektura bazy danych (MySQL + SQLAlchemy)
+System powinien opierać się na kilku dobrze przemyślanych, powiązanych tabelach:
+
+Supplier (Dostawcy).
+
+Ingredient (Składniki – np. mąka, łosoś, oliwa z historią zmian cen).
+
+Recipe (Przepisy – np. Pizza Margherita).
+
+RecipeIngredient (Tabela łącząca, tzw. association table, przechowująca informacje o tym, ile gramów 
+danego składnika wchodzi w skład przepisu).
+
+Menu (Karta dań z przypisaną ceną sprzedażową dla klienta).
+
+2. Punkty końcowe (GraphQL / Graphene)
+Zapomnij o nudnych operacjach dodawania i usuwania. Zrób zaawansowane API:
+
+Mutacja uploadSupplierPrices: Punkt przyjmujący plik (np. udawany arkusz Excela/CSV od dostawcy). 
+Mutacja nie przetwarza pliku od razu (bo plik może mieć 10 000 wierszy), lecz jedynie zapisuje go na 
+dysku/w chmurze i natychmiast zwraca ID zadania do klienta.
+
+Zapytanie getMenuProfitability: Zwraca listę dań z aktualnego menu. Zamiast przechowywać cenę w 
+bazie, resolver dynamicznie oblicza koszt każdego dania w ułamku sekundy, łącząc relacje 
+z tabeli RecipeIngredient i wyciągając ostrzeżenia (np. status: "CRITICAL_MARGIN"), jeśli food cost 
+dania przekroczył założone 30%.
+
+Mutacja bulkUpdateRecipes: Pozwala na masową podmianę składnika we wszystkich przepisach naraz (np. 
+kiedy zmieniasz rodzaj używanego sera).
+
+3. Procesy asynchroniczne (Celery + Redis)
+To tutaj projekt nabiera wagi i pokazuje Twoje seniorskie aspiracje:
+
+Task process_pricelist_etl: To zadanie odpala się w tle po wywołaniu mutacji z plikiem. Skrypt w 
+Celery (z użyciem biblioteki Pandas lub wbudowanego modułu csv) otwiera plik dostawcy, parsuje go 
+"w paczkach" (tzw. chunkowanie) i robi bulk update w bazie MySQL dla setek składników naraz.
+
+Task daily_margin_check (Cron job): Zadanie ustawione w systemie kolejkowym, które odpala się 
+codziennie o 3:00 w nocy. Przelicza rentowność całego menu. Jeśli łosoś podrożał tak bardzo, że 
+tatar przestał być opłacalny, zadanie zapisuje w bazie incydent (log).
+
+Task generate_pdf_report: Asynchroniczne zadanie, które używa np. Jinja2 i narzędzi systemowych, by 
+wygenerować elegancki raport PDF z wynikami restauracji i zasymulować "wysłanie go na maila szefa 
+kuchni".
+
+Dlaczego to rozbije bank na rekrutacji?
+Rozwiązujesz prawdziwy problem: Zamiast kolejnego "To-Do app" albo "Bloga", robisz system ETL 
+(Extract, Transform, Load) dla gastronomii.
+
+Pokazujesz asynchroniczność: Udowadniasz, że wiesz, jak nie zablokować serwera w trakcie ciężkich 
+obliczeń i jak obsługiwać pliki w tle.
+
+Zaawansowany GraphQL: Zastosowanie mutacji przyjmujących pliki (graphene-file-upload) i resolverów 
+dokonujących agregacji z kilku tabel (SQLAlchemy JOINs) to twardy dowód Twoich umiejętności z 
+poprzednich projektów.
+
+
+Faza 1: Fundamenty i Infrastruktura (Środowisko)
+Zanim napiszesz linijkę logiki, musisz postawić magazyn i przygotować narzędzia.
+
+Krok 1: Inicjalizacja projektu. Utworzenie wirtualnego środowiska (.venv) i pliku requirements.txt. 
+Instalacja podstaw (Flask, SQLAlchemy, Graphene, PyMySQL, python-dotenv).
+
+Krok 2: Konteneryzacja (Docker). Zamiast instalować wszystko ręcznie, napiszesz prosty plik 
+docker-compose.yml, który jednym poleceniem uruchomi lokalnie bazę MySQL oraz serwer Redis 
+(niezbędny później do Celery).
+
+Krok 3: Modelowanie bazy danych. Napisanie modeli SQLAlchemy odzwierciedlających strukturę: 
+Supplier (Dostawca), Ingredient (Składnik), Recipe (Przepis), RecipeIngredient (Tabela łącząca – 
+ile gramów składnika wchodzi w przepis) oraz Menu.
+
+Faza 2: Silnik GraphQL (Podstawowe API)
+Budowa "drzwi", przez które klient będzie rozmawiał z bazą.
+
+Krok 1: Konfiguracja Flaska. Połączenie Flaska z bazą danych przy użyciu pliku .env (ukrycie haseł) 
+i wystawienie punktu końcowego /graphql.
+
+Krok 2: Podstawowe zapytania (Queries). Napisanie resolverów pozwalających wyciągnąć z bazy listę 
+wszystkich składników oraz aktualne menu (wraz z zagnieżdżonymi przepisami).
+
+Krok 3: Mutacje zarządzające (Mutations). Stworzenie bezpiecznych operacji do dodawania nowych 
+dostawców oraz wprowadzania nowych potraw do systemu.
+
+Faza 3: Operacje Asynchroniczne (Celery + Redis)
+W tym momencie Twój projekt przestaje być "zwykłym kursem", a staje się systemem na poziomie 
+Mid/Senior.
+
+Krok 1: Integracja Celery. Skonfigurowanie Celery wewnątrz aplikacji Flask, tak aby komunikowało 
+się z uruchomionym w kontenerze Redisem (jako brokerem wiadomości).
+
+Krok 2: Zbudowanie potoku ETL (Import Cenników). Stworzenie mutacji GraphQL, która przyjmuje 
+polecenie aktualizacji cen od konkretnego dostawcy i natychmiast zwraca task_id. Cała ciężka praca 
+(otwarcie pliku, parsowanie, masowa aktualizacja rekordów Ingredient w MySQL) dzieje się 
+asynchronicznie w tle (tzw. worker Celery).
+
+Faza 4: Zaawansowana Logika Biznesowa (Food Cost Engine)
+Spięcie wszystkiego w funkcjonalną całość analityczną.
+
+Krok 1: Dynamiczna kalkulacja zysków. Napisanie zaawansowanego resolvera getMenuProfitability. 
+Serwer musi użyć złączeń bazy danych (SQLAlchemy JOIN), by dla każdego dania policzyć sumę kosztów 
+wszystkich jego składników, porównać z ceną w menu i obliczyć procentowy food cost.
+
+Krok 2: Zadania cykliczne (Celery Beat). Skonfigurowanie CRON-a. Aplikacja ma np. raz dziennie 
+o 3:00 w nocy sama przeliczać całe menu. Jeśli po wgraniu nowych cen od dostawców marża na jakimś 
+daniu spadła poniżej ostrzegawczego progu, system zapisuje incydent w bazie.
+
+Faza 5: Szlify Audytowe i Prezentacyjne (Finisz)
+Przygotowanie projektu pod surowe oko rekrutera.
+
+Krok 1: Raportowanie (Pandas). Stworzenie ostatniego zadania w tle: generowania pliku Excel/CSV z 
+zestawieniem niedochodowych dań w oparciu o zebrane incydenty.
+
+Krok 2: Dokumentacja i instrukcja. Napisanie profesjonalnego pliku README.md. Wyjaśnienie w nim 
+architektury, wypisanie użytych technologii i podanie komend, jak lokalnie uruchomić ten projekt 
+(docker-compose up, start workerów itp.).
+
+Gdy ten projekt zawiśnie na Twoim GitHubie, będziesz mógł podczas rozmowy kwalifikacyjnej opowiadać 
+o nim godzinami, ponieważ idealnie łączy twardą wiedzę o bazach danych i asynchroniczności z realnym 
+problemem biznesowym.
