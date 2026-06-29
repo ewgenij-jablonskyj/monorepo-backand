@@ -2,4 +2,5 @@
 .env
 
 #private_files
-app/modules/chef_core_api/instructions.txt
+app/modules/chef_core_api/instruction.txt
+app/modules/trading_robot/instruction.txt
